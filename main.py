@@ -193,6 +193,9 @@ def predict_options(req: OptionRequest):
         df["contracts_affordable"] = (budget // df["contract_cost"]).astype(int)
         df = df[df["contracts_affordable"] >= 1].copy()
         print(f"[INFO] After affordability filter (budget {budget}): {len(df)} options")
+        if df.empty:
+            print("[INFO] No affordable options found. Returning early.")
+            return {"no_profitable_options": True}
 
         df["total_cost"] = df["contracts_affordable"] * df["contract_cost"]
         df["total_value_at_target"] = df["contracts_affordable"] * df["bs_estimated_value"] * contract_multiplier
