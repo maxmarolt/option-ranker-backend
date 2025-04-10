@@ -186,6 +186,10 @@ def predict_options(req: OptionRequest):
         print("[DEBUG] Sample of entry_price, ask, bid:")
         print(df[["strike", "ask", "bid", "entry_price"]].head(10))
 
+        if (df["entry_price"] == 0).all():
+            print("[INFO] All options have 0 bid/ask. Likely due to market being closed or stale data from Yahoo.")
+            return {"market_closed_or_no_data": True}
+
         df = df[df["entry_price"] > 0].copy()
         print(f"[INFO] After removing zero-priced entries: {len(df)} options")
 
