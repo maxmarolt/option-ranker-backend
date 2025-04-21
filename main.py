@@ -217,3 +217,39 @@ def predict_options(req: OptionRequest):
     except Exception as e:
         traceback.print_exc()
         return {"message": f"Server error: {str(e)}"}
+
+@app.get("/vol-surface")
+def get_vol_surface(ticker: str):
+    try:
+        df = fetch_option_chain_from_yahoo(ticker)
+        df = df[df["impliedVolatility"].notnull()]
+
+        df["days_to_exp"] = (df["expiration"] - pd.Timestamp.today()).dt.days
+        df = df[df["days_to_exp"] > 0]
+
+        grouped = df.groupby(["strike", "days_to_exp"])["impliedVolatility"].mean().reset_index()
+
+        strikes = sorted(grouped["strike"].unique())
+        expiries = sorted(grouped["days_to_exp"].unique())
+
+        # Create matrix for z values (IVs)
+        iv_matrix = []
+        for strike in strikes:
+            row = []
+            for expiry in expiries:
+                subset = grouped[(grouped["strike"] == strike) & (grouped["days_to_exp"] == expiry)]
+                if not subset.empty:
+                    row.append(round(float(subset["impliedVolatility"].iloc[0] * 100), 2))  # convert to %
+                else:
+                    row.append(None)
+            iv_matrix.append(row)
+
+        return {
+            "strikes": strikes,
+            "expiries": expiries,
+            "ivs": iv_matrix
+        }
+
+    except Exception as e:
+        print(f"[ERROR] Failed to generate vol surface: {e}")
+        return {"error": str(e)}
