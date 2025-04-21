@@ -42,7 +42,6 @@ def black_scholes_put(S, K, T, r, sigma):
 
 def explain_reason(row):
     drivers = []
-
     cost_per_contract = row["buy_price"]
     payoff_per_contract = row["bs_estimated_value"]
     contracts = row["contracts_affordable"]
@@ -147,18 +146,12 @@ def predict_options(req: OptionRequest):
         print(f"[INFO] Current price of {ticker}: {current_price}")
 
         option_type = "C" if target_price >= current_price else "P"
-        print(f"[INFO] Selected option type: {option_type}")
-
         df = df_all[
             (df_all["expiration"] >= target_date) &
             (df_all["option_type"] == option_type)
         ].copy()
 
-        print(f"[INFO] After expiration and type filter: {len(df)} options")
-
         df = df[df["impliedVolatility"] >= 0.01]
-        print(f"[INFO] After removing low IV: {len(df)} options")
-
         df["T"] = ((df["expiration"] - decision_date).dt.days.clip(lower=0)) / 365
 
         if option_type == "C":
@@ -169,11 +162,7 @@ def predict_options(req: OptionRequest):
             df["bs_estimated_value"] = df.apply(
                 lambda row: black_scholes_put(target_price, row["strike"], row["T"], r, row["impliedVolatility"]), axis=1
             )
-        print(f"[INFO] After BS valuation")
-        print("[DEBUG] Sample BS valuations:")
-        print(df[["strike", "T", "impliedVolatility", "bs_estimated_value"]].head(10))
 
-        # 🆕 Price mode support
         df["mid_price"] = (df["bid"] + df["ask"]) / 2
 
         if price_mode == "ask":
@@ -183,20 +172,18 @@ def predict_options(req: OptionRequest):
         else:
             df["entry_price"] = df["ask"]
 
-        print("[DEBUG] Sample of entry_price, ask, bid:")
-        print(df[["strike", "ask", "bid", "entry_price"]].head(10))
-
-        if (df["entry_price"] == 0).all():
-            print("[INFO] All options have 0 bid/ask. Likely due to market being closed or stale data from Yahoo.")
+        # ✅ New: Check for missing or stale bid/ask data
+        if df["bid"].isnull().all() or df["ask"].isnull().all():
+            print("[INFO] All options missing bid/ask. Likely market closed or stale data from Yahoo.")
+            return {"market_closed_or_no_data": True}
+        if ((df["bid"] == 0) & (df["ask"] == 0)).all():
+            print("[INFO] All options have 0 bid/ask. Likely market closed or stale data from Yahoo.")
             return {"market_closed_or_no_data": True}
 
         df = df[df["entry_price"] > 0].copy()
-        print(f"[INFO] After removing zero-priced entries: {len(df)} options")
-
         df["contract_cost"] = df["entry_price"] * contract_multiplier
         df["contracts_affordable"] = (budget // df["contract_cost"]).astype(int)
         df = df[df["contracts_affordable"] >= 1].copy()
-        print(f"[INFO] After affordability filter (budget {budget}): {len(df)} options")
         if df.empty:
             print("[INFO] No affordable options found. Returning early.")
             return {"no_profitable_options": True}
@@ -213,17 +200,10 @@ def predict_options(req: OptionRequest):
         df["roi_rank"] = df["predicted_return"].rank(method="min", ascending=False)
         df["explanation"] = df.apply(lambda row: explain_reason(row), axis=1)
 
-        badges_list = []
-        for _, row in df.iterrows():
-            badges = generate_badges(row, df)
-            badges_list.append(badges)
-        df["badges"] = badges_list
+        df["badges"] = [generate_badges(row, df) for _, row in df.iterrows()]
 
         result = df.sort_values(by="predicted_profit", ascending=False).head(5)
         all_negative_roi = bool(df["predicted_return"].max() <= 0)
-
-        print("[DEBUG] Final options sample:")
-        print(df[["strike", "buy_price", "predicted_profit", "predicted_return"]].sort_values(by="predicted_profit", ascending=False).head(10))
 
         return {
             "no_profitable_options": all_negative_roi,
