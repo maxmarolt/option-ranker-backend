@@ -190,6 +190,15 @@ def predict_options(req: OptionRequest, request: Request):
 
         # ✅ Risk Filtering Based on Mode
         if mode == "profit":
+            # ✅ Strategic mode must only run if target date is at least 14 days out
+            min_days_ahead = 14
+            days_until_target = (pd.to_datetime(req.target_date) - pd.Timestamp.today()).days
+            if days_until_target < min_days_ahead:
+                return {
+                    "no_profitable_options": True,
+                    "message": f"Strategic mode requires a longer time horizon. Try a target date at least {min_days_ahead} days from today."
+                }
+
             print(f"[DEBUG] Starting strategic filter: {len(df)} contracts before filtering")
 
             df["days_to_expiration"] = df["T"] * 365
@@ -208,8 +217,15 @@ def predict_options(req: OptionRequest, request: Request):
 
             df = df[df["entry_price"] >= min_price]
 
-            # Strike within ±25% of target price
-            df = df[(df["strike"] >= target_price * 0.75) & (df["strike"] <= target_price * 1.25)]
+            # 📉 Dynamically filter strike range using implied move estimate
+            df["T_current"] = ((df["expiration"] - pd.Timestamp.today()).dt.days.clip(lower=0)) / 365
+            df["expected_move"] = current_price * df["impliedVolatility"] * np.sqrt(df["T_current"])
+
+            df = df[
+                (df["strike"] >= current_price - df["expected_move"]) &
+                (df["strike"] <= current_price + df["expected_move"] * 1.5)  # allow extra upside
+            ]
+
 
             # Expiry must be more than 14 days out
             df = df[df["days_to_expiration"] > 14]
@@ -248,6 +264,12 @@ def predict_options(req: OptionRequest, request: Request):
         contracts_considered_final = len(df)
 
         result = df.sort_values(by=sort_by, ascending=False).head(5)
+
+        print("Top results:\n", result[[
+            "expiration", "strike", "buy_price", "bs_estimated_value",
+            "implied_volatility", "predicted_return", "predicted_profit"
+        ]])
+
 
         return {
             "no_profitable_options": False,
