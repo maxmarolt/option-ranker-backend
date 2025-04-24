@@ -136,6 +136,16 @@ def predict_options(req: OptionRequest, request: Request):
     try:
         mode = request.query_params.get("mode", "roi")
 
+        # Early check for strategic mode (block short-term predictions)
+        if mode == "profit":
+            min_days_ahead = 14
+            days_until_target = (pd.to_datetime(req.target_date) - pd.Timestamp.today()).days
+            if days_until_target < min_days_ahead:
+                return {
+                    "no_profitable_options": True,
+                    "message": f"Strategic mode requires a longer time horizon. Try a target date at least {min_days_ahead} days from today."
+                }
+
         print(f"[DEBUG] Strategy mode received: {mode}")
 
 
@@ -188,16 +198,7 @@ def predict_options(req: OptionRequest, request: Request):
         if df.empty:
             return {"no_profitable_options": True, "message": "No contracts found within budget."}
 
-        # ✅ Risk Filtering Based on Mode
         if mode == "profit":
-            # ✅ Strategic mode must only run if target date is at least 14 days out
-            min_days_ahead = 14
-            days_until_target = (pd.to_datetime(req.target_date) - pd.Timestamp.today()).days
-            if days_until_target < min_days_ahead:
-                return {
-                    "no_profitable_options": True,
-                    "message": f"Strategic mode requires a longer time horizon. Try a target date at least {min_days_ahead} days from today."
-                }
 
             print(f"[DEBUG] Starting strategic filter: {len(df)} contracts before filtering")
 
