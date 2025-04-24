@@ -201,6 +201,15 @@ def predict_options(req: OptionRequest, request: Request):
 
         if df.empty:
             return {"no_profitable_options": True, "message": "No contracts found within budget."}
+        
+            # 📉 Dynamically filter strike range using implied move estimate
+        df["T_current"] = ((df["expiration"] - pd.Timestamp.today()).dt.days.clip(lower=0)) / 365
+        df["expected_move"] = current_price * df["impliedVolatility"] * np.sqrt(df["T_current"])
+        risk_factor = 1.5 if mode == "roi" else 1.2
+        upper_bound = current_price + df["expected_move"] * risk_factor
+        lower_bound = current_price - df["expected_move"]
+
+        df["target_too_far"] = (target_price > upper_bound) | (target_price < lower_bound)
 
         if mode == "profit":
 
@@ -222,14 +231,7 @@ def predict_options(req: OptionRequest, request: Request):
 
             df = df[df["entry_price"] >= min_price]
 
-            # 📉 Dynamically filter strike range using implied move estimate
-            df["T_current"] = ((df["expiration"] - pd.Timestamp.today()).dt.days.clip(lower=0)) / 365
-            df["expected_move"] = current_price * df["impliedVolatility"] * np.sqrt(df["T_current"])
-            risk_factor = 1.5 if mode == "roi" else 1.2
-            upper_bound = current_price + df["expected_move"] * risk_factor
-            lower_bound = current_price - df["expected_move"]
-
-            df["target_too_far"] = (target_price > upper_bound) | (target_price < lower_bound)
+            
             print("[DEBUG] Target too far breakdown (first 10):")
             print(df[["strike", "expiration", "target_too_far"]].head(10))
 
