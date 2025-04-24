@@ -292,7 +292,7 @@ def predict_options(req: OptionRequest, request: Request):
             "results": result[[
                 "expiration", "option_type", "strike", "buy_price", "ask",
                 "contracts_affordable", "total_cost", "predicted_profit", "predicted_return",
-                "explanation", "badges", "bs_target_price", "T", "bs_estimated_value", "implied_volatility"
+                "explanation", "badges", "bs_target_price", "T", "bs_estimated_value", "implied_volatility", "target_too_far"
             ]].to_dict(orient="records"),
             "stats": {
                 "total_contracts_available": total_contracts_available,
