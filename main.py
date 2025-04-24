@@ -225,6 +225,12 @@ def predict_options(req: OptionRequest, request: Request):
             # 📉 Dynamically filter strike range using implied move estimate
             df["T_current"] = ((df["expiration"] - pd.Timestamp.today()).dt.days.clip(lower=0)) / 365
             df["expected_move"] = current_price * df["impliedVolatility"] * np.sqrt(df["T_current"])
+            risk_factor = 1.5 if mode == "roi" else 1.2
+            upper_bound = current_price + df["expected_move"] * risk_factor
+            lower_bound = current_price - df["expected_move"]
+
+            df["target_too_far"] = (target_price > upper_bound) | (target_price < lower_bound)
+
 
             print(f"[DEBUG] Current price: {current_price}")
             print(f"[DEBUG] Sample expected move range:")
