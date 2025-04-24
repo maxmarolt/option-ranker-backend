@@ -230,6 +230,9 @@ def predict_options(req: OptionRequest, request: Request):
             lower_bound = current_price - df["expected_move"]
 
             df["target_too_far"] = (target_price > upper_bound) | (target_price < lower_bound)
+            print("[DEBUG] Target too far breakdown (first 10):")
+            print(df[["strike", "expiration", "target_too_far"]].head(10))
+
 
 
             print(f"[DEBUG] Current price: {current_price}")
