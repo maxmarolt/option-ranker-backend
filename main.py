@@ -149,6 +149,7 @@ def predict_options(req: OptionRequest, request: Request):
         r = 0.05
 
         df_all = fetch_option_chain_from_yahoo(ticker)
+        total_contracts_available = len(df_all)
         current_price = df_all["active_underlying_price"].iloc[0]
 
         option_type = "C" if target_price >= current_price else "P"
@@ -156,6 +157,8 @@ def predict_options(req: OptionRequest, request: Request):
             (df_all["expiration"] >= target_date) &
             (df_all["option_type"] == option_type)
         ].copy()
+        contracts_after_prediction_filter = len(df)
+
 
         df = df[df["impliedVolatility"] >= 0.01]
         df["T"] = ((df["expiration"] - target_date).dt.days.clip(lower=0)) / 365
@@ -242,6 +245,7 @@ def predict_options(req: OptionRequest, request: Request):
 
         sort_by = "predicted_return" if mode == "roi" else "predicted_profit"
         print(f"[DEBUG] Sorting by: {sort_by}")
+        contracts_considered_final = len(df)
 
         result = df.sort_values(by=sort_by, ascending=False).head(5)
 
@@ -252,8 +256,14 @@ def predict_options(req: OptionRequest, request: Request):
                 "expiration", "option_type", "strike", "buy_price", "ask",
                 "contracts_affordable", "total_cost", "predicted_profit", "predicted_return",
                 "explanation", "badges", "bs_target_price", "T", "bs_estimated_value", "implied_volatility"
-            ]].to_dict(orient="records")
+            ]].to_dict(orient="records"),
+            "stats": {
+                "total_contracts_available": total_contracts_available,
+                "contracts_after_prediction_filter": contracts_after_prediction_filter,
+                "contracts_considered_final": contracts_considered_final
+            }
         }
+
 
     except Exception as e:
         traceback.print_exc()
