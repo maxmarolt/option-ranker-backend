@@ -226,6 +226,10 @@ def predict_options(req: OptionRequest, request: Request):
             df["T_current"] = ((df["expiration"] - pd.Timestamp.today()).dt.days.clip(lower=0)) / 365
             df["expected_move"] = current_price * df["impliedVolatility"] * np.sqrt(df["T_current"])
 
+            print(f"[DEBUG] Current price: {current_price}")
+            print(f"[DEBUG] Sample expected move range:")
+            print(df[["strike", "expiration", "expected_move"]].head(10))
+
             df = df[
                 (df["strike"] >= current_price - df["expected_move"]) &
                 (df["strike"] <= current_price + df["expected_move"] * 1.5)  # allow extra upside
