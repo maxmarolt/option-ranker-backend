@@ -403,21 +403,31 @@ def log_beta_event(event: BetaEvent):
     print(f"[BETA LOG] User: {event.beta_id}, Event: {event.event}, Details: {event.details}")
 
     try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        print("[DEBUG] Loading Google credentials from environment")
         service_account_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
+
+        print("[DEBUG] Creating Google credentials object")
         credentials = Credentials.from_service_account_info(
             service_account_info,
-            scopes=scopes
-)
+            scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
+
+        print("[DEBUG] Authorizing gspread client")
         gc = gspread.authorize(credentials)
-        sheet = gc.open_by_key("1EK_pA6k7gc1_irk-rJDBYfHiz9cIxD2nlFzNxLjvfAo").sheet1  # ❗ Insert real ID
+
+        print("[DEBUG] Opening spreadsheet")
+        sheet = gc.open_by_key("1EK_pA6k7gc1_irk-rJDBYfHiz9cIxD2nlFzNxLjvfAo").sheet1
+
+        print("[DEBUG] Appending row")
         sheet.append_row([
             pd.Timestamp.now(tz='UTC').strftime("%Y-%m-%d %H:%M:%S"),
             event.beta_id,
             event.event,
             str(event.details)
         ])
+
     except Exception as e:
-        print(f"[ERROR] Failed to log beta event to Google Sheets: {e}")
+        print("[ERROR] Failed to log beta event to Google Sheets:")
+        traceback.print_exc()  # <-- prints full stack trace
 
     return {"status": "success"}
