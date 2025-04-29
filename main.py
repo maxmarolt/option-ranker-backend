@@ -386,3 +386,15 @@ def get_current_price(ticker: str):
             return {"error": "Price not found"}
     except Exception as e:
         return {"error": str(e)}
+
+from fastapi import Body
+
+class BetaEvent(BaseModel):
+    beta_id: str
+    event: str
+    details: dict
+
+@app.post("/log-beta-event")
+def log_beta_event(event: BetaEvent):
+    print(f"[BETA LOG] User: {event.beta_id}, Event: {event.event}, Details: {event.details}")
+    return {"status": "success"}
