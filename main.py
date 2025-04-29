@@ -8,6 +8,8 @@ import math
 import traceback
 from yahoo_api import fetch_option_chain_from_yahoo
 import yfinance as yf
+import gspread
+from google.oauth2.service_account import Credentials
 
 app = FastAPI()
 
@@ -397,4 +399,22 @@ class BetaEvent(BaseModel):
 @app.post("/log-beta-event")
 def log_beta_event(event: BetaEvent):
     print(f"[BETA LOG] User: {event.beta_id}, Event: {event.event}, Details: {event.details}")
+
+    try:
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        credentials = Credentials.from_service_account_file(
+            "service_account.json",  # 🚨 Make sure this file is correctly deployed
+            scopes=scopes
+        )
+        gc = gspread.authorize(credentials)
+        sheet = gc.open_by_key("YOUR_GOOGLE_SHEET_ID_HERE").sheet1  # ❗ Insert real ID
+        sheet.append_row([
+            pd.Timestamp.now(tz='UTC').strftime("%Y-%m-%d %H:%M:%S"),
+            event.beta_id,
+            event.event,
+            str(event.details)
+        ])
+    except Exception as e:
+        print(f"[ERROR] Failed to log beta event to Google Sheets: {e}")
+
     return {"status": "success"}
