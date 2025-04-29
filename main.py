@@ -10,6 +10,8 @@ from yahoo_api import fetch_option_chain_from_yahoo
 import yfinance as yf
 import gspread
 from google.oauth2.service_account import Credentials
+import os
+import json
 
 app = FastAPI()
 
@@ -402,12 +404,13 @@ def log_beta_event(event: BetaEvent):
 
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        credentials = Credentials.from_service_account_file(
-            "service_account.json",  # 🚨 Make sure this file is correctly deployed
+        service_account_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
+        credentials = Credentials.from_service_account_info(
+            service_account_info,
             scopes=scopes
-        )
+)
         gc = gspread.authorize(credentials)
-        sheet = gc.open_by_key("YOUR_GOOGLE_SHEET_ID_HERE").sheet1  # ❗ Insert real ID
+        sheet = gc.open_by_key("1EK_pA6k7gc1_irk-rJDBYfHiz9cIxD2nlFzNxLjvfAo").sheet1  # ❗ Insert real ID
         sheet.append_row([
             pd.Timestamp.now(tz='UTC').strftime("%Y-%m-%d %H:%M:%S"),
             event.beta_id,
