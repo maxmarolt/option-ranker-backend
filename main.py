@@ -164,7 +164,7 @@ def predict_options(req: OptionRequest, request: Request):
         ticker = req.ticker.upper()
         price_mode = req.price_mode.lower()
         contract_multiplier = 100
-        r = 0.05
+        r = 0.0485
 
         df_all = fetch_option_chain_from_yahoo(ticker)
         total_contracts_available = len(df_all)
@@ -419,12 +419,29 @@ def log_beta_event(event: BetaEvent):
         sheet = gc.open_by_key("1EK_pA6k7gc1_irk-rJDBYfHiz9cIxD2nlFzNxLjvfAo").sheet1
 
         print("[DEBUG] Appending row")
-        sheet.append_row([
+        row = [
             pd.Timestamp.now(tz='UTC').strftime("%Y-%m-%d %H:%M:%S"),
             event.beta_id,
             event.event,
             str(event.details)
-        ])
+        ]
+
+        # ✅ Add calculator result summary only if event is 'Calculator Submitted'
+        if event.event == "Calculator Submitted":
+            try:
+                ticker = event.details.get("ticker")
+                budget = event.details.get("budget")
+                target_price = event.details.get("targetPrice")
+                expiry = event.details.get("expiryDate")
+                result_summary = f"{ticker}, {budget}, {target_price}, {expiry}"
+                row.append(result_summary)
+            except Exception as e:
+                row.append("Error extracting summary")
+        else:
+            row.append("")
+
+        sheet.append_row(row)
+
 
     except Exception as e:
         print("[ERROR] Failed to log beta event to Google Sheets:")
