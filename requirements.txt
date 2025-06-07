@@ -6,3 +6,4 @@ scipy
 yfinance
 gspread
 google-auth
+gspread

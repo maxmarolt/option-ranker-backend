@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from trending import router as trending_router
 import pandas as pd
 import numpy as np
 from scipy.stats import norm
@@ -14,6 +15,8 @@ import os
 import json
 
 app = FastAPI()
+
+app.include_router(trending_router)
 
 app.add_middleware(
     CORSMiddleware,
