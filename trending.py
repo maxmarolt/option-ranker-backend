@@ -4,8 +4,10 @@ import pandas as pd
 import json
 import os
 import time
+import yfinance as yf  # Required for fetching live prices
 
 router = APIRouter()
+
 
 
 SHEET_ID = "1GLw524fGrKtsVByxV-wZ9NwuBNxeDBTzBqH3nx6xNtA"
@@ -18,12 +20,10 @@ _cache_expiry = 0
 def get_trending_tickers():
     global _cached_result, _cache_expiry
 
-    # Serve cached result if valid
     if time.time() < _cache_expiry and _cached_result:
         return _cached_result
 
     try:
-        # Connect to Google Sheets
         creds_dict = json.loads(os.environ["GOOGLE_SHEETS_CREDS_JSON_APP"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open_by_key(SHEET_ID)
@@ -35,7 +35,6 @@ def get_trending_tickers():
         if "Timestamp" not in df.columns or "Event" not in df.columns or "Details" not in df.columns:
             return {"error": "Missing required columns"}
 
-        # Filter by Event and Timestamp (last 14 days)
         df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors='coerce')
         df = df[df["Timestamp"] >= pd.Timestamp.now() - pd.Timedelta(days=14)]
         calc_df = df[df["Event"] == "Calculator Submitted"]
@@ -59,20 +58,37 @@ def get_trending_tickers():
             .agg(["mean", "count"])
             .reset_index()
             .sort_values(by="count", ascending=False)
-            .head(10)  # increased from 5 to 10
+            .head(10)
         )
+
+        # Fetch current prices for the top 10 tickers
+        current_prices = {}
+        tickers = trending["ticker"].tolist()
+        for ticker in tickers:
+            try:
+                cleaned = ticker.strip().upper()
+                current = yf.Ticker(cleaned).fast_info.get("lastPrice", None)
+                if current is not None:
+                    current_prices[ticker] = current
+            except Exception:
+                current_prices[ticker] = None
 
         result = []
         for _, row in trending.iterrows():
+            ticker = row["ticker"]
+            avg_target = round(row["mean"], 2)
+            count = int(row["count"])
+            current_price = current_prices.get(ticker, None)
+
             result.append({
-                "ticker": row["ticker"],
-                "avgTarget": round(row["mean"], 2),
-                "count": int(row["count"])
+                "ticker": ticker,
+                "avgTarget": avg_target,
+                "count": count,
+                "currentPrice": current_price
             })
 
-        # Cache result for 15 minutes
         _cached_result = result
-        _cache_expiry = time.time() + 900
+        _cache_expiry = time.time() + 900  # 15 minutes
 
         return result
 
