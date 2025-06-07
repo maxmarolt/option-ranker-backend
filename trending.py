@@ -5,6 +5,7 @@ import json
 import os
 import time
 import yfinance as yf  # Required for fetching live prices
+from fastapi import HTTPException
 
 router = APIRouter()
 
@@ -24,7 +25,16 @@ def get_trending_tickers():
         return _cached_result
 
     try:
-        creds_dict = json.loads(os.environ["GOOGLE_SHEETS_CREDS_JSON_APP"])
+        creds_raw = os.getenv("GOOGLE_SHEETS_CREDS_JSON_APP")
+
+        if not creds_raw:
+            raise HTTPException(status_code=500, detail="Missing GOOGLE_SHEETS_CREDS_JSON_APP")
+
+        try:
+            creds_dict = json.loads(creds_raw)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="GOOGLE_SHEETS_CREDS_JSON_APP is not valid JSON")
+
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open_by_key(SHEET_ID)
         worksheet = sh.sheet1
