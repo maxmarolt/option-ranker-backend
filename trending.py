@@ -54,9 +54,12 @@ def get_trending_tickers():
             try:
                 parsed_row = json.loads(row)
                 if "ticker" in parsed_row and "targetPrice" in parsed_row:
+                    cleaned_ticker = parsed_row["ticker"].strip().upper()
+                    parsed_row["ticker"] = cleaned_ticker
                     parsed.append(parsed_row)
             except Exception:
                 continue
+
 
         if not parsed:
             return {"error": "No valid rows with ticker and targetPrice"}
