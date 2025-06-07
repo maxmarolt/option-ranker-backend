@@ -3,37 +3,44 @@ import gspread
 import pandas as pd
 import json
 import os
+import time
 
 router = APIRouter()
 
-# Path to your service account credentials
-CREDENTIALS_PATH = "google_creds.json"
 
-# Google Sheet ID (from the sheet URL)
 SHEET_ID = "1GLw524fGrKtsVByxV-wZ9NwuBNxeDBTzBqH3nx6xNtA"
+
+# In-memory cache
+_cached_result = None
+_cache_expiry = 0
 
 @router.get("/trending-tickers")
 def get_trending_tickers():
+    global _cached_result, _cache_expiry
+
+    # Serve cached result if valid
+    if time.time() < _cache_expiry and _cached_result:
+        return _cached_result
+
     try:
+        # Connect to Google Sheets
         creds_dict = json.loads(os.environ["GOOGLE_SHEETS_CREDS_JSON_APP"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open_by_key(SHEET_ID)
-        worksheet = sh.sheet1  # first tab
-
+        worksheet = sh.sheet1
         data = worksheet.get_all_records()
 
-        # Create DataFrame
         df = pd.DataFrame(data)
 
-        # Ensure required columns (case-sensitive)
-        if "Event" not in df.columns or "Details" not in df.columns:
-            return {"error": "Required columns not found in sheet"}
+        if "Timestamp" not in df.columns or "Event" not in df.columns or "Details" not in df.columns:
+            return {"error": "Missing required columns"}
 
-        # Filter only calculator submission rows
+        # Filter by Event and Timestamp (last 14 days)
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors='coerce')
+        df = df[df["Timestamp"] >= pd.Timestamp.now() - pd.Timedelta(days=14)]
         calc_df = df[df["Event"] == "Calculator Submitted"]
 
         parsed = []
-
         for row in calc_df["Details"]:
             try:
                 parsed_row = json.loads(row)
@@ -45,24 +52,14 @@ def get_trending_tickers():
         if not parsed:
             return {"error": "No valid rows with ticker and targetPrice"}
 
-
-
         parsed_df = pd.DataFrame(parsed)
 
-        # Filter out rows missing required fields
-        parsed_df = parsed_df[parsed_df["ticker"].notnull() & parsed_df["targetPrice"].notnull()]
-
-        if parsed_df.empty:
-            return {"error": "No valid ticker data found"}
-
-
-        # Compute trending stats
         trending = (
             parsed_df.groupby("ticker")["targetPrice"]
             .agg(["mean", "count"])
             .reset_index()
             .sort_values(by="count", ascending=False)
-            .head(5)
+            .head(10)  # increased from 5 to 10
         )
 
         result = []
@@ -72,6 +69,10 @@ def get_trending_tickers():
                 "avgTarget": round(row["mean"], 2),
                 "count": int(row["count"])
             })
+
+        # Cache result for 15 minutes
+        _cached_result = result
+        _cache_expiry = time.time() + 900
 
         return result
 
